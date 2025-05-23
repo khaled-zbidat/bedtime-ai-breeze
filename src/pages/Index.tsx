@@ -6,11 +6,17 @@ import { LoadingIndicator } from '@/components/LoadingIndicator';
 import { Header } from '@/components/Header';
 import { sendChatMessage } from '@/services/apiService';
 
+// Define a more comprehensive Message interface that works with both components
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   id: string;
 }
+
+// Interface for display messages (excludes system messages)
+type DisplayMessage = Omit<Message, 'role'> & {
+  role: 'user' | 'assistant';
+};
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -66,7 +72,8 @@ const Index = () => {
     }
   };
 
-  const displayMessages = messages.filter(msg => msg.role !== 'system');
+  // Filter out system messages for display
+  const displayMessages = messages.filter(msg => msg.role !== 'system') as DisplayMessage[];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-orange-100">

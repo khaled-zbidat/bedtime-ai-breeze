@@ -11,8 +11,8 @@ interface ChatResponse {
   };
 }
 
-// This should be configured via environment variable in production
-const BACKEND_URL = process.env.REACT_APP_OLLAMA_BACKEND_URL || 'http://localhost:11434';
+// Use import.meta.env instead of process.env for Vite projects
+const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL || 'http://localhost:11434';
 
 export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse> => {
   try {
@@ -40,12 +40,12 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     console.error('Error communicating with backend:', error);
     
     // For development/demo purposes, return a mock response
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('Using mock response for development');
       return {
         message: {
           role: 'assistant',
-          content: `Once upon a time, there was a magical adventure waiting to unfold! 🌟\n\n(Note: This is a demo response. To connect to your Ollama backend, please set the REACT_APP_OLLAMA_BACKEND_URL environment variable to your Ollama server URL.)\n\nYour story prompt was: "${messages[messages.length - 1]?.content}"\n\nI would love to create an amazing story for you once connected to the AI backend!`
+          content: `Once upon a time, there was a magical adventure waiting to unfold! 🌟\n\n(Note: This is a demo response. To connect to your Ollama backend, please set the VITE_OLLAMA_BACKEND_URL environment variable to your Ollama server URL.)\n\nYour story prompt was: "${messages[messages.length - 1]?.content}"\n\nI would love to create an amazing story for you once connected to the AI backend!`
         }
       };
     }
