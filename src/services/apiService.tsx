@@ -80,7 +80,11 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': window.location.origin,
       },
+      mode: 'cors',
+      credentials: 'omit',
       body: JSON.stringify(requestBody),
     });
 
@@ -104,30 +108,42 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     let fullContent = '';
     const decoder = new TextDecoder();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        try {
-          const data: OllamaResponse = JSON.parse(line);
-          if (data.message && data.message.content) {
-            fullContent += data.message.content;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        console.log('Received chunk:', chunk); // Debug log
+        
+        const lines = chunk.split('\n').filter(line => line.trim());
+        
+        for (const line of lines) {
+          try {
+            const data: OllamaResponse = JSON.parse(line);
+            console.log('Parsed data:', data); // Debug log
+            
+            if (data.message && data.message.content) {
+              fullContent += data.message.content;
+              console.log('Current full content:', fullContent); // Debug log
+            }
+            if (data.done) {
+              console.log('Received done signal'); // Debug log
+              break;
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse line:', line, parseError);
           }
-          // If done is true, we've reached the end
-          if (data.done) {
-            break;
-          }
-        } catch (parseError) {
-          console.warn('Failed to parse line:', line, parseError);
         }
       }
+    } catch (streamError) {
+      console.error('Error reading stream:', streamError);
+      throw new Error('Failed to read response stream');
+    } finally {
+      reader.releaseLock();
     }
 
-    console.log('Assembled full content:', fullContent);
+    console.log('Final assembled content:', fullContent);
 
     if (!fullContent) {
       console.error('No content found in response');
@@ -148,7 +164,13 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       cause: error.cause
     });
     
-    // Rethrow with a more user-friendly message
+    // Provide more specific error messages
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('Cannot connect to the AI backend. Please check if it is running and accessible.');
+    }
+    if (error.message.includes('NetworkError')) {
+      throw new Error('Network error occurred. Please check your connection and try again.');
+    }
     throw new Error('Failed to communicate with the AI backend. Please try again in a moment.');
   }
 };
