@@ -73,6 +73,21 @@ jobs:
 
             echo "Restarting frontend server..."
             pkill -f "serve" || true
-            nohup npx serve -s dist -l 8666 > serve.log 2>&1 &
+            sleep 2  # Wait for the process to fully terminate
+            mkdir -p logs
+            NODE_ENV=production nohup npx serve -s dist -l 8666 >> logs/serve.log 2>&1 &
+            sleep 5  # Wait for the server to start
+
+            # Verify the server is running
+            if ! pgrep -f "serve -s dist" > /dev/null; then
+                echo "❌ Server failed to start! Check logs/serve.log for details"
+                exit 1
+            fi
+
+            # Check if the port is actually being listened to
+            if ! netstat -tulpn 2>/dev/null | grep ":8666" > /dev/null; then
+                echo "❌ Server is not listening on port 8666! Check logs/serve.log for details"
+                exit 1
+            fi
 
             echo "✅ Deployment completed successfully!"
