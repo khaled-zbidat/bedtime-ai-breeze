@@ -21,7 +21,7 @@ interface OllamaResponse {
 }
 
 // Use import.meta.env instead of process.env for Vite projects
-const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL; // || 'http://localhost:11434';
+const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL;
 
 // Function to test the backend connection
 const testBackendConnection = async () => {
@@ -70,7 +70,7 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     const requestBody = {
       model: "phi",
       messages: messages,
-      stream: false
+      stream: false  // This should disable streaming
     };
     
     console.log('Request body:', JSON.stringify(requestBody, null, 2));
@@ -99,18 +99,40 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       return resp;
     });
 
-    const data: OllamaResponse = await response.json();
-    console.log('Parsed response from backend:', data);
+    // Check if response is streaming (multiple JSON objects)
+    const responseText = await response.text();
+    console.log('Raw response text:', responseText);
 
-    if (!data.message?.content) {
-      console.error('Unexpected response format:', data);
-      throw new Error('Unexpected response format from server');
+    // Parse streaming response if it contains multiple JSON objects
+    const lines = responseText.trim().split('\n').filter(line => line.trim());
+    let fullContent = '';
+    
+    for (const line of lines) {
+      try {
+        const data: OllamaResponse = JSON.parse(line);
+        if (data.message && data.message.content) {
+          fullContent += data.message.content;
+        }
+        // If done is true, we've reached the end
+        if (data.done) {
+          break;
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse line:', line, parseError);
+      }
+    }
+
+    console.log('Assembled full content:', fullContent);
+
+    if (!fullContent) {
+      console.error('No content found in response:', responseText);
+      throw new Error('No content received from AI');
     }
 
     return {
       message: {
         role: 'assistant',
-        content: data.message.content.trim()
+        content: fullContent.trim()
       }
     };
   } catch (error) {
