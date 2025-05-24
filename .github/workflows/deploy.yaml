@@ -45,7 +45,7 @@ jobs:
             git pull origin main
 
             echo "🔧 Writing .env..."
-            echo "VITE_OLLAMA_BACKEND_URL=http://${{ secrets.OLLAMA_PRIVATE_IP }}:11434" > .env
+            echo "VITE_OLLAMA_BACKEND_URL=http://${{ secrets.OLLAMA_PUBLIC_IP }}:11434" > .env
 
             echo "📦 Installing dependencies..."
             npm install

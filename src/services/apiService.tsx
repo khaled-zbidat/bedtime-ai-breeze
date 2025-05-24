@@ -58,8 +58,8 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       throw new Error('BACKEND_URL is not configured. Please check your environment variables.');
     }
 
-    console.log('Sending messages to backend:', messages);
-    console.log('Using backend URL:', BACKEND_URL);
+    console.log('[API] Sending messages to backend:', messages);
+    console.log('[API] Using backend URL:', BACKEND_URL);
     
     // Only send the last user message to match the curl format
     const lastUserMessage = messages.filter(m => m.role === 'user').pop();
@@ -69,12 +69,13 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     
     const requestBody = {
       model: "phi",
-      messages: [
-        { role: "user", content: lastUserMessage.content }
-      ]
+      prompt: lastUserMessage.content,
+      stream: true
     };
     
-    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('[API] Request body:', JSON.stringify(requestBody, null, 2));
+    const url = `${BACKEND_URL}/api/generate`;
+    console.log('[API] Request URL:', url);
 
     // First, let's check if the model is available
     try {
@@ -97,7 +98,7 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     }
 
     // Make the actual request to the chat endpoint
-    const response = await fetch(`${BACKEND_URL}/api/generate`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,16 +107,15 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       },
       mode: 'cors',
       credentials: 'omit',
-      body: JSON.stringify({
-        model: "phi",
-        prompt: lastUserMessage.content,
-        stream: true
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    console.log('[API] Response status:', response.status);
+    console.log('[API] Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Error response:', {
+      console.error('[API] Error response:', {
         status: response.status,
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
@@ -139,39 +139,39 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
         if (done) break;
         
         const chunk = decoder.decode(value);
-        console.log('Received chunk:', chunk);
+        console.log('[API] Received chunk:', chunk);
         
         const lines = chunk.split('\n').filter(line => line.trim());
         
         for (const line of lines) {
           try {
             const data = JSON.parse(line);
-            console.log('Parsed data:', data);
+            console.log('[API] Parsed data:', data);
             
             if (data.response) {
               fullContent += data.response;
-              console.log('Current full content:', fullContent);
+              console.log('[API] Current full content:', fullContent);
             }
             if (data.done) {
-              console.log('Received done signal');
+              console.log('[API] Received done signal');
               break;
             }
           } catch (parseError) {
-            console.warn('Failed to parse line:', line, parseError);
+            console.warn('[API] Failed to parse line:', line, parseError);
           }
         }
       }
     } catch (streamError) {
-      console.error('Error reading stream:', streamError);
+      console.error('[API] Error reading stream:', streamError);
       throw new Error('Failed to read response stream');
     } finally {
       reader.releaseLock();
     }
 
-    console.log('Final assembled content:', fullContent);
+    console.log('[API] Final assembled content:', fullContent);
 
     if (!fullContent) {
-      console.error('No content found in response');
+      console.error('[API] No content found in response');
       throw new Error('No content received from AI');
     }
 
@@ -182,8 +182,8 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       }
     };
   } catch (error) {
-    console.error('Error communicating with backend:', error);
-    console.error('Error details:', {
+    console.error('[API] Error communicating with backend:', error);
+    console.error('[API] Error details:', {
       message: error.message,
       stack: error.stack,
       cause: error.cause
