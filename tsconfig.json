@@ -10,6 +10,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "declaration": false,
     "jsx": "react-jsx",
     "strict": false,
     "noUnusedLocals": false,
@@ -23,7 +24,5 @@
     "types": ["vite/client"]
   },
   "include": ["src", "vite-env.d.ts"],
-  "references": [
-    { "path": "./tsconfig.node.json" }
-  ]
+  "exclude": ["node_modules", "dist", "dev-server"]
 }
