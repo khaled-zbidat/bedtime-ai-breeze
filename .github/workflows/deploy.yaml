@@ -18,13 +18,15 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.PRIVATE_KEY }}
-          envs: APP_DIR,OLLAMA_PRIVATE_IP
+          envs: OLLAMA_PRIVATE_IP
           script: |
             set -e
             
-            # Export environment variables for use in the script
-            export APP_DIR="${{ secrets.APP_DIR }}"
+            # Export environment variables
             export OLLAMA_PRIVATE_IP="${{ secrets.OLLAMA_PRIVATE_IP }}"
+            
+            # Set app directory
+            APP_DIR="/home/ubuntu/bedtime-ai-breeze"
             
             # Try to use existing Node.js first, then install if needed
             if command -v node &> /dev/null; then
@@ -32,26 +34,18 @@ jobs:
               echo "NPM version: $(npm --version)"
             else
               echo "Installing Node.js via package manager..."
-              # Update package list
               sudo apt-get update
-              
-              # Install Node.js 18.x from NodeSource repository
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
-              
               echo "Node.js installed: $(node --version)"
               echo "NPM version: $(npm --version)"
             fi
             
-            # Verify APP_DIR is set and exists
-            if [ -z "$APP_DIR" ]; then
-              echo "ERROR: APP_DIR is not set"
-              exit 1
-            fi
-            
+            # Create/update the app directory
             if [ ! -d "$APP_DIR" ]; then
-              echo "ERROR: Directory $APP_DIR does not exist"
-              exit 1
+              echo "Cloning repository..."
+              cd /home/ubuntu
+              git clone https://github.com/${{ github.repository }}.git bedtime-ai-breeze
             fi
             
             echo "Changing to directory: $APP_DIR"
