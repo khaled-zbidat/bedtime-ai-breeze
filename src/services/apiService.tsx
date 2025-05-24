@@ -10,51 +10,93 @@ interface ChatResponse {
   };
 }
 
+interface OllamaResponse {
+  model: string;
+  created_at: string;
+  message: {
+    role: string;
+    content: string;
+  };
+  done: boolean;
+}
+
 // Use import.meta.env instead of process.env for Vite projects
 const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL; // || 'http://localhost:11434';
 
+// Function to test the backend connection
+const testBackendConnection = async () => {
+  try {
+    console.log('Testing connection to backend URL:', BACKEND_URL);
+    const response = await fetch(`${BACKEND_URL}/api/tags`);
+    console.log('Backend connection test response:', response.status);
+    return response.ok;
+  } catch (error) {
+    console.error('Backend connection test failed:', error);
+    return false;
+  }
+};
+
 export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse> => {
   try {
+    if (!BACKEND_URL) {
+      throw new Error('BACKEND_URL is not configured. Please check your environment variables.');
+    }
+
+    // Test connection first
+    const isConnected = await testBackendConnection();
+    if (!isConnected) {
+      throw new Error('Cannot connect to Ollama backend. Please check if the service is running and accessible.');
+    }
+
     console.log('Sending messages to backend:', messages);
+    console.log('Using backend URL:', BACKEND_URL);
     
+    const requestBody = {
+      model: "phi",
+      messages: messages,
+      stream: false
+    };
+    
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: "phi",
-        messages: messages,
-        stream: false // Disable streaming for now to ensure basic functionality
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Error response body:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
     }
 
-    // Parse the response as text first to handle potential JSON parsing errors
-    const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      console.error('Failed to parse response as JSON:', text);
-      throw new Error('Invalid JSON response from server');
+    const data: OllamaResponse = await response.json();
+    console.log('Parsed response from backend:', data);
+
+    if (!data.message || !data.message.content) {
+      console.error('Unexpected response format:', data);
+      throw new Error('Unexpected response format from server');
     }
 
-    // Log the raw response for debugging
-    console.log('Raw response from backend:', data);
-    
-    // Handle Ollama's response format
     return {
       message: {
         role: 'assistant',
-        content: data.message?.content || data.response || 'Sorry, I could not generate a response.'
+        content: data.message.content.trim()
       }
     };
   } catch (error) {
     console.error('Error communicating with backend:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
     
     // For development/demo purposes, return a mock response
     if (import.meta.env.DEV) {
