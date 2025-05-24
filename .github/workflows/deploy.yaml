@@ -25,6 +25,9 @@ jobs:
             REPO_URL="https://github.com/${{ github.repository }}.git"
             APP_DIR="/home/ubuntu/${REPO_NAME}"
 
+            echo "🛑 Killing any process using port 8666..."
+            sudo fuser -k 8666/tcp || true
+
             echo "📦 Installing Node.js if needed..."
             if ! command -v node &> /dev/null; then
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
@@ -50,7 +53,7 @@ jobs:
             echo "🏗️ Building..."
             npm run build
 
-            echo "🛠️ Setting up service..."
+            echo "🛠️ Setting up systemd service..."
             sudo bash -c "cat > /etc/systemd/system/frontend-serve.service << 'EOL'
             [Unit]
             Description=Frontend Server
@@ -67,7 +70,7 @@ jobs:
             WantedBy=multi-user.target
             EOL"
 
-            echo "🔁 Starting service..."
+            echo "🔁 Restarting systemd service..."
             sudo systemctl daemon-reload
             sudo systemctl enable frontend-serve.service
             sudo systemctl restart frontend-serve.service
@@ -77,7 +80,7 @@ jobs:
 
             if systemctl is-active --quiet frontend-serve.service; then
               echo "✅ Deployment successful!"
-              echo "🌐 Frontend: http://<EC2_PUBLIC_IP>:8666"
+              echo "🌐 Frontend: http://${{ secrets.HOST }}:8666"
             else
               echo "❌ Service failed to start"
               sudo journalctl -u frontend-serve.service --no-pager -n 20
