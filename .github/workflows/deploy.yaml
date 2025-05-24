@@ -22,27 +22,20 @@ jobs:
           script: |
             set -e
 
-            # Export environment variables
             export OLLAMA_PRIVATE_IP="${{ secrets.OLLAMA_PRIVATE_IP }}"
-
-            # Parse repo name from GITHUB_REPOSITORY
             REPO_NAME=$(basename "${{ github.repository }}")
             REPO_URL="https://github.com/${{ github.repository }}.git"
             APP_DIR="/home/ubuntu/${REPO_NAME}"
 
-            echo "Repo name: $REPO_NAME"
-            echo "Repo URL: $REPO_URL"
-            echo "App directory: $APP_DIR"
+            echo "➡️ Setting up environment on EC2..."
 
-            # Install nginx if not present
             if ! command -v nginx &> /dev/null; then
-              echo "Installing nginx..."
+              echo "🔧 Installing nginx..."
               sudo apt-get update
               sudo apt-get install -y nginx
             fi
 
-            # Configure nginx reverse proxy with variable expansion
-            echo "Configuring nginx..."
+            echo "🔧 Configuring nginx reverse proxy..."
             sudo bash -c "cat > /etc/nginx/sites-available/ollama-proxy << 'EOL'
             server {
                 listen 11434;
@@ -65,7 +58,7 @@ jobs:
                     proxy_set_header Connection 'upgrade';
                     proxy_set_header Host \$host;
                     proxy_cache_bypass \$http_upgrade;
-                    
+
                     add_header 'Access-Control-Allow-Origin' '*' always;
                     add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
                     add_header 'Access-Control-Allow-Headers' '*' always;
@@ -74,106 +67,101 @@ jobs:
             }
             EOL"
 
-            # Enable the nginx site and test configuration
             sudo ln -sf /etc/nginx/sites-available/ollama-proxy /etc/nginx/sites-enabled/
             sudo rm -f /etc/nginx/sites-enabled/default
-            
-            # Test nginx configuration
-            echo "Testing nginx configuration..."
+
+            echo "🧪 Testing nginx configuration..."
             if ! sudo nginx -t; then
-                echo "❌ Nginx configuration test failed!"
-                sudo cat /etc/nginx/sites-available/ollama-proxy
-                exit 1
-            fi
-            
-            # Restart nginx
-            echo "Restarting nginx..."
-            sudo systemctl restart nginx
-            
-            # Verify nginx is running
-            if ! systemctl is-active --quiet nginx; then
-                echo "❌ Nginx failed to start!"
-                sudo journalctl -u nginx --no-pager -n 50
-                exit 1
+              echo "❌ Nginx config test failed!"
+              sudo cat /etc/nginx/sites-available/ollama-proxy
+              exit 1
             fi
 
-            # Check for Node.js, install if not present
-            if command -v node &> /dev/null; then
-              echo "Node.js already installed: $(node --version)"
-              echo "NPM version: $(npm --version)"
-            else
-              echo "Installing Node.js..."
-              sudo apt-get update
+            echo "🔁 Restarting nginx..."
+            sudo systemctl restart nginx
+
+            if ! systemctl is-active --quiet nginx; then
+              echo "❌ Nginx did not start!"
+              sudo journalctl -u nginx --no-pager -n 50
+              exit 1
+            fi
+
+            if ! command -v node &> /dev/null; then
+              echo "📦 Installing Node.js..."
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
-              echo "Node.js installed: $(node --version)"
-              echo "NPM version: $(npm --version)"
             fi
 
-            # Clone repo if directory doesn't exist
+            echo "📁 Cloning or updating repository..."
             if [ ! -d "$APP_DIR" ]; then
-              echo "Cloning repository..."
               cd /home/ubuntu
               git clone "$REPO_URL"
             fi
 
-            # Navigate to app directory and update
-            echo "Changing to directory: $APP_DIR"
             cd "$APP_DIR"
-
-            echo "Resetting and pulling latest code..."
             git reset --hard
             git pull origin main
 
-            echo "Writing .env with OLLAMA backend..."
-            # Update to use localhost since we're using nginx reverse proxy
+            echo "🔧 Writing .env..."
             echo "VITE_OLLAMA_BACKEND_URL=http://localhost:11434" > .env
 
-            echo "Installing dependencies..."
+            echo "📦 Installing frontend dependencies..."
             npm install
 
-            echo "Building frontend..."
+            echo "⚙️ Updating browserslist DB..."
+            npx update-browserslist-db@latest || echo "⚠️ Failed to update caniuse-lite, continuing..."
+
+            echo "🏗️ Building frontend..."
             npm run build
 
-            echo "Restarting frontend server..."
-            pkill -f "serve" || true
-            sleep 2  # Wait for the process to fully terminate
-            mkdir -p logs
-            
-            # Start the server with proper error handling
-            echo "Starting frontend server..."
-            if ! NODE_ENV=production npx serve -s dist -l 8666 >> logs/serve.log 2>&1 & then
-                echo "❌ Failed to start the server!"
-                cat logs/serve.log
-                exit 1
-            fi
-            
-            # Wait for server to start and verify
-            echo "Waiting for server to start..."
+            echo "🛠️ Setting up serve service..."
+            sudo bash -c "cat > /etc/systemd/system/frontend-serve.service << 'EOL'
+            [Unit]
+            Description=Frontend Vite Server
+            After=network.target
+
+            [Service]
+            Type=simple
+            User=ubuntu
+            WorkingDirectory=${APP_DIR}
+            ExecStart=/usr/bin/npx serve -s dist -l 8666
+            Restart=always
+            StandardOutput=append:${APP_DIR}/logs/serve.log
+            StandardError=append:${APP_DIR}/logs/serve.err.log
+            Environment=NODE_ENV=production
+
+            [Install]
+            WantedBy=multi-user.target
+            EOL"
+
+            echo "🔁 Reloading systemd and restarting service..."
+            sudo systemctl daemon-reexec
+            sudo systemctl daemon-reload
+            sudo systemctl enable frontend-serve.service
+            sudo systemctl restart frontend-serve.service
+
+            echo "🧪 Waiting and verifying serve is running..."
             sleep 5
-            
-            # Verify the server is running
-            if ! pgrep -f "serve -s dist" > /dev/null; then
-                echo "❌ Server failed to start! Check logs/serve.log for details"
-                cat logs/serve.log
-                exit 1
+            if ! systemctl is-active --quiet frontend-serve.service; then
+              echo "❌ Frontend server failed to start!"
+              sudo journalctl -u frontend-serve.service --no-pager -n 50
+              exit 1
             fi
 
-            # Check if the port is actually being listened to
-            if ! netstat -tulpn 2>/dev/null | grep ":8666" > /dev/null; then
-                echo "❌ Server is not listening on port 8666! Check logs/serve.log for details"
-                cat logs/serve.log
-                exit 1
+            echo "🧪 Verifying port 8666 is active..."
+            if ! ss -tulpn | grep ":8666" > /dev/null; then
+              echo "❌ Port 8666 is not active!"
+              cat ${APP_DIR}/logs/serve.err.log
+              exit 1
             fi
 
-            # Test the nginx proxy
-            echo "Testing nginx proxy..."
-            curl -v http://localhost:11434/api/tags || {
-                echo "❌ Failed to connect to Ollama through nginx proxy"
-                sudo journalctl -u nginx --no-pager -n 50
-                exit 1
+            echo "🧪 Testing nginx proxy route..."
+            curl -s http://localhost:11434/api/tags || {
+              echo "❌ Failed to connect to Ollama backend via nginx"
+              sudo journalctl -u nginx --no-pager -n 50
+              exit 1
             }
 
-            echo "✅ Deployment completed successfully!"
-            echo "Frontend URL: http://localhost:8666"
-            echo "API URL: http://localhost:11434"
+            echo "✅ Deployment successful!"
+            echo "🌐 Frontend: http://<EC2_PUBLIC_IP>:8666"
+            echo "🧠 Ollama API: http://<EC2_PUBLIC_IP>:11434"
