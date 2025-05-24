@@ -12,25 +12,25 @@ const QUICK_STORIES = [
     icon: Cat,
     label: "Quick Animal Story",
     prompt: "Write a very short 3-line story about a friendly animal adventure. Keep it simple and cute.",
-    color: "text-orange-500",
+    iconColor: "text-orange-500",
   },
   {
     icon: Rocket,
     label: "Space Adventure",
     prompt: "Write a very short 3-line story about a fun space adventure. Keep it simple and exciting.",
-    color: "text-blue-500",
+    iconColor: "text-blue-500",
   },
   {
     icon: Crown,
     label: "Fairy Tale",
     prompt: "Write a very short 3-line fairy tale with a happy ending. Keep it simple and magical.",
-    color: "text-yellow-500",
+    iconColor: "text-yellow-500",
   },
   {
     icon: BookOpen,
     label: "Bedtime Story",
     prompt: "Write a very short 3-line bedtime story that will help kids sleep. Keep it simple and calming.",
-    color: "text-purple-500",
+    iconColor: "text-purple-500",
   },
 ];
 
@@ -43,18 +43,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ onGenerateStory, disabled }) =
           <h2 className="text-lg font-semibold text-purple-800">Quick Stories</h2>
         </div>
 
-        {QUICK_STORIES.map((story, index) => (
-          <Button
-            key={index}
-            variant="outline"
-            className="w-full justify-start gap-2 hover:bg-purple-50 hover:text-purple-700 transition-colors"
-            onClick={() => onGenerateStory(story.prompt)}
-            disabled={disabled}
-          >
-            <story.icon className={`w-4 h-4 ${story.color}`} />
-            {story.label}
-          </Button>
-        ))}
+        {QUICK_STORIES.map((story, index) => {
+          const Icon = story.icon;
+          return (
+            <Button
+              key={index}
+              variant="outline"
+              className="w-full justify-start gap-2 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+              onClick={() => onGenerateStory(story.prompt)}
+              disabled={disabled}
+            >
+              <Icon className={`w-4 h-4 ${story.iconColor}`} />
+              {story.label}
+            </Button>
+          );
+        })}
       </div>
 
       <div className="mt-6 flex justify-center">
