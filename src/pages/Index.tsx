@@ -1,68 +1,132 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Cat, Sparkles, Rocket, BookOpen, Crown, Brain } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MessageBubble } from '@/components/MessageBubble';
+import { StoryInput } from '@/components/StoryInput';
+import { LoadingIndicator } from '@/components/LoadingIndicator';
+import { Header } from '@/components/Header';
+import { Sidebar } from '@/components/Sidebar';
+import { sendChatMessage } from '@/services/apiService';
 
-interface SidebarProps {
-  onGenerateStory: (prompt: string) => void;
-  disabled: boolean;
+// Define a more comprehensive Message interface that works with both components
+interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  id: string;
 }
 
-const QUICK_STORIES = [
-  {
-    icon: Cat,
-    label: "Quick Animal Story",
-    prompt: "Write a very short 3-line story about a friendly animal adventure. Keep it simple and cute.",
-    iconColor: "text-orange-500",
-  },
-  {
-    icon: Rocket,
-    label: "Space Adventure",
-    prompt: "Write a very short 3-line story about a fun space adventure. Keep it simple and exciting.",
-    iconColor: "text-blue-500",
-  },
-  {
-    icon: Crown,
-    label: "Fairy Tale",
-    prompt: "Write a very short 3-line fairy tale with a happy ending. Keep it simple and magical.",
-    iconColor: "text-yellow-500",
-  },
-  {
-    icon: BookOpen,
-    label: "Bedtime Story",
-    prompt: "Write a very short 3-line bedtime story that will help kids sleep. Keep it simple and calming.",
-    iconColor: "text-purple-500",
-  },
-];
+// Interface for display messages (excludes system messages)
+type DisplayMessage = Omit<Message, 'role'> & {
+  role: 'user' | 'assistant';
+};
 
-export const Sidebar: React.FC<SidebarProps> = ({ onGenerateStory, disabled }) => {
+const Index = () => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: 'system',
+      content: 'You are a creative children\'s story writer. Create engaging, age-appropriate stories based on the prompts. Keep stories fun, educational, and suitable for children aged 4-12.',
+      id: 'system-1'
+    }
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (userInput: string) => {
+    if (!userInput.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: userInput,
+      id: `user-${Date.now()}`
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      const response = await sendChatMessage([...messages, userMessage]);
+      
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response.message.content,
+        id: `assistant-${Date.now()}`
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'Oops! Something went wrong. Let me try again to create your story.',
+        id: `error-${Date.now()}`
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filter out system messages for display
+  const displayMessages = messages.filter(msg => msg.role !== 'system') as DisplayMessage[];
+
   return (
-    <div className="w-64 bg-white/80 backdrop-blur-sm border-r border-purple-100 p-4 flex flex-col justify-between h-full">
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-5 h-5 text-purple-500" />
-          <h2 className="text-lg font-semibold text-purple-800">Quick Stories</h2>
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-orange-100 flex">
+      <Sidebar onGenerateStory={handleSendMessage} disabled={isLoading} />
+      
+      <div className="flex-1 flex flex-col">
+        <Header />
+        
+        <div className="flex-1 container mx-auto px-4 pb-24">
+          <div className="max-w-4xl mx-auto">
+            {/* Welcome message when no stories yet */}
+            {displayMessages.length === 0 && (
+              <div className="text-center py-12">
+                <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
+                  <h2 className="text-3xl font-bold text-purple-800 mb-4">
+                    ✨ Let's Create Amazing Stories! ✨
+                  </h2>
+                  <p className="text-lg text-gray-700 mb-6">
+                    Tell me what kind of story you'd like, or use the quick story buttons on the left!
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-sm">
+                    <div className="bg-blue-100 rounded-xl p-4">
+                      <strong>Try saying:</strong> "Tell me a story about a brave little mouse"
+                    </div>
+                    <div className="bg-green-100 rounded-xl p-4">
+                      <strong>Or:</strong> "Create a story about friendship and adventure"
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Chat messages */}
+            <div className="space-y-4 mb-6">
+              {displayMessages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))}
+              
+              {isLoading && <LoadingIndicator />}
+              <div ref={chatEndRef} />
+            </div>
+          </div>
         </div>
 
-        {QUICK_STORIES.map((story, index) => {
-          const Icon = story.icon;
-          return (
-            <Button
-              key={index}
-              variant="outline"
-              className="w-full justify-start gap-2 hover:bg-purple-50 hover:text-purple-700 transition-colors"
-              onClick={() => onGenerateStory(story.prompt)}
-              disabled={disabled}
-            >
-              <Icon className={`w-4 h-4 ${story.iconColor}`} />
-              {story.label}
-            </Button>
-          );
-        })}
-      </div>
-
-      <div className="mt-6 flex justify-center">
-        <Brain className="w-12 h-12 text-purple-300 opacity-60" />
+        {/* Fixed input at bottom */}
+        <div className="fixed bottom-0 left-64 right-0 bg-white/90 backdrop-blur-sm border-t border-white/20 p-4">
+          <div className="container mx-auto max-w-4xl">
+            <StoryInput onSendMessage={handleSendMessage} disabled={isLoading} />
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
+export default Index;
