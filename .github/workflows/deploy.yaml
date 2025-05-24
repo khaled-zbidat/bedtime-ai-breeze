@@ -18,8 +18,13 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.PRIVATE_KEY }}
+          envs: APP_DIR,OLLAMA_PRIVATE_IP
           script: |
             set -e
+            
+            # Export environment variables for use in the script
+            export APP_DIR="${{ secrets.APP_DIR }}"
+            export OLLAMA_PRIVATE_IP="${{ secrets.OLLAMA_PRIVATE_IP }}"
             
             # Try to use existing Node.js first, then install if needed
             if command -v node &> /dev/null; then
@@ -38,14 +43,26 @@ jobs:
               echo "NPM version: $(npm --version)"
             fi
             
-            cd ${{ secrets.APP_DIR }}
+            # Verify APP_DIR is set and exists
+            if [ -z "$APP_DIR" ]; then
+              echo "ERROR: APP_DIR is not set"
+              exit 1
+            fi
+            
+            if [ ! -d "$APP_DIR" ]; then
+              echo "ERROR: Directory $APP_DIR does not exist"
+              exit 1
+            fi
+            
+            echo "Changing to directory: $APP_DIR"
+            cd "$APP_DIR"
             
             echo "Pulling latest code from GitHub..."
             git reset --hard
             git pull origin main
             
             echo "Writing .env with OLLAMA backend..."
-            echo "VITE_OLLAMA_BACKEND_URL=http://${{ secrets.OLLAMA_PRIVATE_IP }}:11434" > .env
+            echo "VITE_OLLAMA_BACKEND_URL=http://${OLLAMA_PRIVATE_IP}:11434" > .env
             
             echo "Installing dependencies..."
             npm install
@@ -56,3 +73,5 @@ jobs:
             echo "Restarting frontend server..."
             pkill -f "serve" || true
             nohup npx serve -s dist -l 4173 > serve.log 2>&1 &
+            
+            echo "Deployment completed successfully!"
