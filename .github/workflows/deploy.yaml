@@ -1,4 +1,4 @@
-name: Full CD to UI Instance via SSH
+name: Deploy to EC2
 
 on:
   push:
@@ -12,87 +12,26 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Deploy to EC2 UI Instance
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.PRIVATE_KEY }}
-          envs: OLLAMA_PRIVATE_IP
           script: |
             set -e
 
-            export OLLAMA_PRIVATE_IP="${{ secrets.OLLAMA_PRIVATE_IP }}"
             REPO_NAME=$(basename "${{ github.repository }}")
             REPO_URL="https://github.com/${{ github.repository }}.git"
             APP_DIR="/home/ubuntu/${REPO_NAME}"
 
-            echo "➡️ Setting up environment on EC2..."
-
-            if ! command -v nginx &> /dev/null; then
-              echo "🔧 Installing nginx..."
-              sudo apt-get update
-              sudo apt-get install -y nginx
-            fi
-
-            echo "🔧 Configuring nginx reverse proxy..."
-            sudo bash -c "cat > /etc/nginx/sites-available/ollama-proxy << 'EOL'
-            server {
-                listen 11434;
-                server_name _;
-
-                location / {
-                    if (\$request_method = OPTIONS) {
-                        add_header 'Access-Control-Allow-Origin' '*' always;
-                        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
-                        add_header 'Access-Control-Allow-Headers' '*' always;
-                        add_header 'Access-Control-Max-Age' 1728000 always;
-                        add_header 'Content-Type' 'text/plain charset=UTF-8' always;
-                        add_header 'Content-Length' 0;
-                        return 204;
-                    }
-
-                    proxy_pass http://${OLLAMA_PRIVATE_IP}:11434;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade \$http_upgrade;
-                    proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host \$host;
-                    proxy_cache_bypass \$http_upgrade;
-
-                    add_header 'Access-Control-Allow-Origin' '*' always;
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
-                    add_header 'Access-Control-Allow-Headers' '*' always;
-                    add_header 'Access-Control-Expose-Headers' '*' always;
-                }
-            }
-            EOL"
-
-            sudo ln -sf /etc/nginx/sites-available/ollama-proxy /etc/nginx/sites-enabled/
-            sudo rm -f /etc/nginx/sites-enabled/default
-
-            echo "🧪 Testing nginx configuration..."
-            if ! sudo nginx -t; then
-              echo "❌ Nginx config test failed!"
-              sudo cat /etc/nginx/sites-available/ollama-proxy
-              exit 1
-            fi
-
-            echo "🔁 Restarting nginx..."
-            sudo systemctl restart nginx
-
-            if ! systemctl is-active --quiet nginx; then
-              echo "❌ Nginx did not start!"
-              sudo journalctl -u nginx --no-pager -n 50
-              exit 1
-            fi
-
+            echo "📦 Installing Node.js if needed..."
             if ! command -v node &> /dev/null; then
-              echo "📦 Installing Node.js..."
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
 
-            echo "📁 Cloning or updating repository..."
+            echo "📁 Setting up repository..."
             if [ ! -d "$APP_DIR" ]; then
               cd /home/ubuntu
               git clone "$REPO_URL"
@@ -103,21 +42,18 @@ jobs:
             git pull origin main
 
             echo "🔧 Writing .env..."
-            echo "VITE_OLLAMA_BACKEND_URL=http://localhost:11434" > .env
+            echo "VITE_OLLAMA_BACKEND_URL=${{ secrets.OLLAMA_PRIVATE_IP }}:11434" > .env
 
-            echo "📦 Installing frontend dependencies..."
+            echo "📦 Installing dependencies..."
             npm install
 
-            echo "⚙️ Updating browserslist DB..."
-            npx update-browserslist-db@latest || echo "⚠️ Failed to update caniuse-lite, continuing..."
-
-            echo "🏗️ Building frontend..."
+            echo "🏗️ Building..."
             npm run build
 
-            echo "🛠️ Setting up serve service..."
+            echo "🛠️ Setting up service..."
             sudo bash -c "cat > /etc/systemd/system/frontend-serve.service << 'EOL'
             [Unit]
-            Description=Frontend Vite Server
+            Description=Frontend Server
             After=network.target
 
             [Service]
@@ -126,42 +62,24 @@ jobs:
             WorkingDirectory=${APP_DIR}
             ExecStart=/usr/bin/npx serve -s dist -l 8666
             Restart=always
-            StandardOutput=append:${APP_DIR}/logs/serve.log
-            StandardError=append:${APP_DIR}/logs/serve.err.log
-            Environment=NODE_ENV=production
 
             [Install]
             WantedBy=multi-user.target
             EOL"
 
-            echo "🔁 Reloading systemd and restarting service..."
-            sudo systemctl daemon-reexec
+            echo "🔁 Starting service..."
             sudo systemctl daemon-reload
             sudo systemctl enable frontend-serve.service
             sudo systemctl restart frontend-serve.service
 
-            echo "🧪 Waiting and verifying serve is running..."
-            sleep 5
-            if ! systemctl is-active --quiet frontend-serve.service; then
-              echo "❌ Frontend server failed to start!"
-              sudo journalctl -u frontend-serve.service --no-pager -n 50
+            echo "⏳ Waiting for service..."
+            sleep 3
+
+            if systemctl is-active --quiet frontend-serve.service; then
+              echo "✅ Deployment successful!"
+              echo "🌐 Frontend: http://<EC2_PUBLIC_IP>:8666"
+            else
+              echo "❌ Service failed to start"
+              sudo journalctl -u frontend-serve.service --no-pager -n 20
               exit 1
             fi
-
-            echo "🧪 Verifying port 8666 is active..."
-            if ! ss -tulpn | grep ":8666" > /dev/null; then
-              echo "❌ Port 8666 is not active!"
-              cat ${APP_DIR}/logs/serve.err.log
-              exit 1
-            fi
-
-            echo "🧪 Testing nginx proxy route..."
-            curl -s http://localhost:11434/api/tags || {
-              echo "❌ Failed to connect to Ollama backend via nginx"
-              sudo journalctl -u nginx --no-pager -n 50
-              exit 1
-            }
-
-            echo "✅ Deployment successful!"
-            echo "🌐 Frontend: http://<EC2_PUBLIC_IP>:8666"
-            echo "🧠 Ollama API: http://<EC2_PUBLIC_IP>:11434"
