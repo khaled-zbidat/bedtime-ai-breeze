@@ -21,21 +21,22 @@ jobs:
           script: |
             set -e
             
-            # Check if NVM exists, if not install it
-            if [ ! -d "$HOME/.nvm" ]; then
-              echo "Installing NVM..."
-              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-              export NVM_DIR="$HOME/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            # Try to use existing Node.js first, then install if needed
+            if command -v node &> /dev/null; then
+              echo "Node.js already installed: $(node --version)"
+              echo "NPM version: $(npm --version)"
             else
-              echo "NVM already installed, loading..."
-              export NVM_DIR="$HOME/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+              echo "Installing Node.js via package manager..."
+              # Update package list
+              sudo apt-get update
+              
+              # Install Node.js 18.x from NodeSource repository
+              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+              sudo apt-get install -y nodejs
+              
+              echo "Node.js installed: $(node --version)"
+              echo "NPM version: $(npm --version)"
             fi
-            
-            # Install/use Node 18
-            nvm install 18
-            nvm use 18
             
             cd ${{ secrets.APP_DIR }}
             
