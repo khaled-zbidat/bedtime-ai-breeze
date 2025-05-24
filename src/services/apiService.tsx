@@ -76,7 +76,28 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     
     console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+    // First, let's check if the model is available
+    try {
+      const modelCheckResponse = await fetch(`${BACKEND_URL}/api/tags`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Origin': window.location.origin,
+        },
+        mode: 'cors',
+        credentials: 'omit',
+      });
+      
+      if (modelCheckResponse.ok) {
+        const models = await modelCheckResponse.json();
+        console.log('Available models:', models);
+      }
+    } catch (error) {
+      console.warn('Could not check available models:', error);
+    }
+
+    // Make the actual request to the chat endpoint
+    const response = await fetch(`${BACKEND_URL}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +106,11 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       },
       mode: 'cors',
       credentials: 'omit',
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model: "phi",
+        prompt: lastUserMessage.content,
+        stream: true
+      }),
     });
 
     if (!response.ok) {
@@ -114,21 +139,21 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
         if (done) break;
         
         const chunk = decoder.decode(value);
-        console.log('Received chunk:', chunk); // Debug log
+        console.log('Received chunk:', chunk);
         
         const lines = chunk.split('\n').filter(line => line.trim());
         
         for (const line of lines) {
           try {
-            const data: OllamaResponse = JSON.parse(line);
-            console.log('Parsed data:', data); // Debug log
+            const data = JSON.parse(line);
+            console.log('Parsed data:', data);
             
-            if (data.message && data.message.content) {
-              fullContent += data.message.content;
-              console.log('Current full content:', fullContent); // Debug log
+            if (data.response) {
+              fullContent += data.response;
+              console.log('Current full content:', fullContent);
             }
             if (data.done) {
-              console.log('Received done signal'); // Debug log
+              console.log('Received done signal');
               break;
             }
           } catch (parseError) {
