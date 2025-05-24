@@ -63,7 +63,7 @@ jobs:
             Type=simple
             User=ubuntu
             WorkingDirectory=${APP_DIR}
-            ExecStart=/usr/bin/npx serve -s dist -l 8666
+            ExecStart=/usr/bin/npx serve -s dist -l tcp://0.0.0.0:8666
             Restart=always
 
             [Install]
