@@ -4,9 +4,7 @@ import { MessageBubble } from '@/components/MessageBubble';
 import { StoryInput } from '@/components/StoryInput';
 import { LoadingIndicator } from '@/components/LoadingIndicator';
 import { Header } from '@/components/Header';
-import { AppSidebar } from '@/components/AppSidebar';
 import { sendChatMessage } from '@/services/apiService';
-import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -72,68 +70,58 @@ const Index = () => {
     }
   };
 
-  const handleTemplateSelect = (prompt: string) => {
-    handleSendMessage(prompt);
-  };
-
   const displayMessages = messages.filter(msg => msg.role !== 'system') as DisplayMessage[];
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-purple-100 via-blue-50 to-orange-100">
-        <AppSidebar onTemplateSelect={handleTemplateSelect} />
-        
-        <SidebarInset className="flex-1">
-          <div className="min-h-screen">
-            <Header />
-            
-            <div className="md:hidden p-4">
-              <SidebarTrigger className="bg-white/70 backdrop-blur-sm border border-white/20 rounded-xl" />
-            </div>
-            
-            <div className="container mx-auto px-4 pb-24">
-              <div className="max-w-4xl mx-auto">
-                {displayMessages.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
-                      <h2 className="text-3xl font-bold text-purple-800 mb-4">
-                        ✨ Let's Create Amazing Stories! ✨
-                      </h2>
-                      <p className="text-lg text-gray-700 mb-6">
-                        Choose a template from the sidebar or tell me what kind of story you'd like!
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-sm">
-                        <div className="bg-blue-100 rounded-xl p-4">
-                          <strong>Try the sidebar:</strong> Click on any story template to get started instantly
-                        </div>
-                        <div className="bg-green-100 rounded-xl p-4">
-                          <strong>Or customize:</strong> "Create a story about friendship and adventure"
-                        </div>
-                      </div>
-                    </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-blue-50 to-orange-100">
+      <Header />
+      
+      <div className="container mx-auto px-4 pb-24">
+        <div className="max-w-4xl mx-auto">
+          {displayMessages.length === 0 && (
+            <div className="text-center py-12">
+              <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
+                <h2 className="text-3xl font-bold text-purple-800 mb-4">
+                  ✨ Let's Create Amazing Stories! ✨
+                </h2>
+                <p className="text-lg text-gray-700 mb-6">
+                  Tell me what kind of story you'd like me to create for you!
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-sm">
+                  <div className="bg-blue-100 rounded-xl p-4">
+                    <strong>Adventure:</strong> "Create a story about a brave child on a magical quest"
                   </div>
-                )}
-
-                <div className="space-y-4 mb-6">
-                  {displayMessages.map((message) => (
-                    <MessageBubble key={message.id} message={message} />
-                  ))}
-                  
-                  {isLoading && <LoadingIndicator />}
-                  <div ref={chatEndRef} />
+                  <div className="bg-green-100 rounded-xl p-4">
+                    <strong>Friendship:</strong> "Tell me a story about making new friends"
+                  </div>
+                  <div className="bg-purple-100 rounded-xl p-4">
+                    <strong>Animals:</strong> "Write about talking forest animals working together"
+                  </div>
+                  <div className="bg-orange-100 rounded-xl p-4">
+                    <strong>Space:</strong> "Create a story about exploring colorful planets"
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-white/20 p-4">
-              <div className="container mx-auto max-w-4xl">
-                <StoryInput onSendMessage={handleSendMessage} disabled={isLoading} />
-              </div>
-            </div>
+          <div className="space-y-4 mb-6">
+            {displayMessages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            
+            {isLoading && <LoadingIndicator />}
+            <div ref={chatEndRef} />
           </div>
-        </SidebarInset>
+        </div>
       </div>
-    </SidebarProvider>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-white/20 p-4">
+        <div className="container mx-auto max-w-4xl">
+          <StoryInput onSendMessage={handleSendMessage} disabled={isLoading} />
+        </div>
+      </div>
+    </div>
   );
 };
 
