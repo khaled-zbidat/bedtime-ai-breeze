@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Paw, Rocket, Book, Crown } from 'lucide-react';
+import { Cat, Sparkles, Rocket, BookOpen, Crown } from 'lucide-react';
 
 interface SidebarProps {
   onGenerateStory: (prompt: string) => void;
@@ -9,7 +9,7 @@ interface SidebarProps {
 
 const QUICK_STORIES = [
   {
-    icon: Paw,
+    icon: Cat,
     label: "Quick Animal Story",
     prompt: "Write a very short 3-line story about a friendly animal adventure. Keep it simple and cute.",
   },
@@ -24,7 +24,7 @@ const QUICK_STORIES = [
     prompt: "Write a very short 3-line fairy tale with a happy ending. Keep it simple and magical.",
   },
   {
-    icon: Book,
+    icon: BookOpen,
     label: "Bedtime Story",
     prompt: "Write a very short 3-line bedtime story that will help kids sleep. Keep it simple and calming.",
   },
