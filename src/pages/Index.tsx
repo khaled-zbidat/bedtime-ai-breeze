@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { StoryInput } from '@/components/StoryInput';
@@ -7,14 +8,12 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { sendChatMessage } from '@/services/apiService';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 
-// Define a more comprehensive Message interface that works with both components
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   id: string;
 }
 
-// Interface for display messages (excludes system messages)
 type DisplayMessage = Omit<Message, 'role'> & {
   role: 'user' | 'assistant';
 };
@@ -77,7 +76,6 @@ const Index = () => {
     handleSendMessage(prompt);
   };
 
-  // Filter out system messages for display
   const displayMessages = messages.filter(msg => msg.role !== 'system') as DisplayMessage[];
 
   return (
@@ -89,14 +87,12 @@ const Index = () => {
           <div className="min-h-screen">
             <Header />
             
-            {/* Mobile sidebar trigger */}
             <div className="md:hidden p-4">
               <SidebarTrigger className="bg-white/70 backdrop-blur-sm border border-white/20 rounded-xl" />
             </div>
             
             <div className="container mx-auto px-4 pb-24">
               <div className="max-w-4xl mx-auto">
-                {/* Welcome message when no stories yet */}
                 {displayMessages.length === 0 && (
                   <div className="text-center py-12">
                     <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
@@ -118,7 +114,6 @@ const Index = () => {
                   </div>
                 )}
 
-                {/* Chat messages */}
                 <div className="space-y-4 mb-6">
                   {displayMessages.map((message) => (
                     <MessageBubble key={message.id} message={message} />
@@ -130,7 +125,6 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Fixed input at bottom */}
             <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-white/20 p-4">
               <div className="container mx-auto max-w-4xl">
                 <StoryInput onSendMessage={handleSendMessage} disabled={isLoading} />
