@@ -20,7 +20,7 @@ interface OllamaResponse {
   done: boolean;
 }
 
-// Use import.meta.env instead of process.env for Vite projects
+// Usee import.meta.env instead of process.env for Vite projects
 const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL;
 
 // Function to test the backend connection
