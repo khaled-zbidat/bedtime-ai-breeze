@@ -1,4 +1,3 @@
-
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -24,7 +23,9 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: messages
+        model: "phi",
+        messages: messages,
+        stream: false // Disable streaming for now to ensure basic functionality
       }),
     });
 
@@ -32,10 +33,26 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data: ChatResponse = await response.json();
-    console.log('Received response from backend:', data);
+    // Parse the response as text first to handle potential JSON parsing errors
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', text);
+      throw new Error('Invalid JSON response from server');
+    }
+
+    // Log the raw response for debugging
+    console.log('Raw response from backend:', data);
     
-    return data;
+    // Handle Ollama's response format
+    return {
+      message: {
+        role: 'assistant',
+        content: data.message?.content || data.response || 'Sorry, I could not generate a response.'
+      }
+    };
   } catch (error) {
     console.error('Error communicating with backend:', error);
     
