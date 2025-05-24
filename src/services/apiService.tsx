@@ -58,74 +58,79 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       throw new Error('BACKEND_URL is not configured. Please check your environment variables.');
     }
 
-    // Test connection first
-    const isConnected = await testBackendConnection();
-    if (!isConnected) {
-      throw new Error('Cannot connect to Ollama backend. Please check if the service is running and accessible.');
-    }
-
     console.log('Sending messages to backend:', messages);
     console.log('Using backend URL:', BACKEND_URL);
     
+    // Only send the last user message to match the curl format
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    if (!lastUserMessage) {
+      throw new Error('No user message found');
+    }
+    
     const requestBody = {
       model: "phi",
-      messages: messages,
-      stream: false  // This should disable streaming
+      messages: [
+        { role: "user", content: lastUserMessage.content }
+      ]
     };
     
     console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-    // Use retry mechanism for the fetch request
-    const response = await retryRequest(async () => {
-      const resp = await fetch(`${BACKEND_URL}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        console.error('Error response:', {
-          status: resp.status,
-          statusText: resp.statusText,
-          headers: Object.fromEntries(resp.headers.entries()),
-          body: errorText
-        });
-        throw new Error(`HTTP error! status: ${resp.status}, body: ${errorText}`);
-      }
-
-      return resp;
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    // Check if response is streaming (multiple JSON objects)
-    const responseText = await response.text();
-    console.log('Raw response text:', responseText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: errorText
+      });
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
 
-    // Parse streaming response if it contains multiple JSON objects
-    const lines = responseText.trim().split('\n').filter(line => line.trim());
+    // Handle streaming response
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Response body is not readable');
+    }
+
     let fullContent = '';
-    
-    for (const line of lines) {
-      try {
-        const data: OllamaResponse = JSON.parse(line);
-        if (data.message && data.message.content) {
-          fullContent += data.message.content;
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        try {
+          const data: OllamaResponse = JSON.parse(line);
+          if (data.message && data.message.content) {
+            fullContent += data.message.content;
+          }
+          // If done is true, we've reached the end
+          if (data.done) {
+            break;
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse line:', line, parseError);
         }
-        // If done is true, we've reached the end
-        if (data.done) {
-          break;
-        }
-      } catch (parseError) {
-        console.warn('Failed to parse line:', line, parseError);
       }
     }
 
     console.log('Assembled full content:', fullContent);
 
     if (!fullContent) {
-      console.error('No content found in response:', responseText);
+      console.error('No content found in response');
       throw new Error('No content received from AI');
     }
 
