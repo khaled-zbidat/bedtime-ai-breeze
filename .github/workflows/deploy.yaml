@@ -41,15 +41,15 @@ jobs:
               sudo apt-get install -y nginx
             fi
 
-            # Configure nginx reverse proxy
+            # Configure nginx reverse proxy with variable expansion
             echo "Configuring nginx..."
-            sudo tee /etc/nginx/sites-available/ollama-proxy << 'EOF'
+            sudo bash -c "cat > /etc/nginx/sites-available/ollama-proxy << EOL
             server {
                 listen 11434;
                 server_name _;
 
                 location / {
-                    if ($request_method = 'OPTIONS') {
+                    if (\$request_method = 'OPTIONS') {
                         add_header 'Access-Control-Allow-Origin' '*';
                         add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
                         add_header 'Access-Control-Allow-Headers' '*';
@@ -59,12 +59,12 @@ jobs:
                         return 204;
                     }
 
-                    proxy_pass http://${OLLAMA_PRIVATE_IP}:11434;
+                    proxy_pass http://$OLLAMA_PRIVATE_IP:11434;
                     proxy_http_version 1.1;
-                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Upgrade \$http_upgrade;
                     proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host $host;
-                    proxy_cache_bypass $http_upgrade;
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
                     
                     add_header 'Access-Control-Allow-Origin' '*' always;
                     add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
@@ -72,12 +72,28 @@ jobs:
                     add_header 'Access-Control-Expose-Headers' '*' always;
                 }
             }
-            EOF
+            EOL"
 
-            # Enable the nginx site
+            # Enable the nginx site and test configuration
             sudo ln -sf /etc/nginx/sites-available/ollama-proxy /etc/nginx/sites-enabled/
             sudo rm -f /etc/nginx/sites-enabled/default
-            sudo nginx -t && sudo systemctl restart nginx
+            
+            # Test nginx configuration
+            echo "Testing nginx configuration..."
+            if ! sudo nginx -t; then
+                echo "❌ Nginx configuration test failed!"
+                exit 1
+            fi
+            
+            # Restart nginx
+            echo "Restarting nginx..."
+            sudo systemctl restart nginx
+            
+            # Verify nginx is running
+            if ! systemctl is-active --quiet nginx; then
+                echo "❌ Nginx failed to start!"
+                exit 1
+            fi
 
             # Check for Node.js, install if not present
             if command -v node &> /dev/null; then
@@ -121,19 +137,33 @@ jobs:
             pkill -f "serve" || true
             sleep 2  # Wait for the process to fully terminate
             mkdir -p logs
-            NODE_ENV=production nohup npx serve -s dist -l 8666 >> logs/serve.log 2>&1 &
-            sleep 5  # Wait for the server to start
-
+            
+            # Start the server with proper error handling
+            echo "Starting frontend server..."
+            if ! NODE_ENV=production npx serve -s dist -l 8666 >> logs/serve.log 2>&1 & then
+                echo "❌ Failed to start the server!"
+                cat logs/serve.log
+                exit 1
+            fi
+            
+            # Wait for server to start and verify
+            echo "Waiting for server to start..."
+            sleep 5
+            
             # Verify the server is running
             if ! pgrep -f "serve -s dist" > /dev/null; then
                 echo "❌ Server failed to start! Check logs/serve.log for details"
+                cat logs/serve.log
                 exit 1
             fi
 
             # Check if the port is actually being listened to
             if ! netstat -tulpn 2>/dev/null | grep ":8666" > /dev/null; then
                 echo "❌ Server is not listening on port 8666! Check logs/serve.log for details"
+                cat logs/serve.log
                 exit 1
             fi
 
             echo "✅ Deployment completed successfully!"
+            echo "Frontend URL: http://localhost:8666"
+            echo "API URL: http://localhost:11434"

@@ -36,6 +36,22 @@ const testBackendConnection = async () => {
   }
 };
 
+// Function to retry a failed request
+async function retryRequest<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries === 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    console.log(`Retrying request... ${retries} attempts remaining`);
+    return retryRequest(fn, retries - 1, delay * 1.5);
+  }
+}
+
 export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse> => {
   try {
     if (!BACKEND_URL) {
@@ -59,27 +75,34 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
     
     console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-    const response = await fetch(`${BACKEND_URL}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
+    // Use retry mechanism for the fetch request
+    const response = await retryRequest(async () => {
+      const resp = await fetch(`${BACKEND_URL}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error('Error response:', {
+          status: resp.status,
+          statusText: resp.statusText,
+          headers: Object.fromEntries(resp.headers.entries()),
+          body: errorText
+        });
+        throw new Error(`HTTP error! status: ${resp.status}, body: ${errorText}`);
+      }
+
+      return resp;
     });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response body:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
 
     const data: OllamaResponse = await response.json();
     console.log('Parsed response from backend:', data);
 
-    if (!data.message || !data.message.content) {
+    if (!data.message?.content) {
       console.error('Unexpected response format:', data);
       throw new Error('Unexpected response format from server');
     }
@@ -98,17 +121,7 @@ export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse
       cause: error.cause
     });
     
-    // For development/demo purposes, return a mock response
-    if (import.meta.env.DEV) {
-      console.log('Using mock response for development');
-      return {
-        message: {
-          role: 'assistant',
-          content: `Once upon a time, there was a magical adventure waiting to unfold! 🌟\n\n(Note: This is a demo response. To connect to your Ollama backend, please set the VITE_OLLAMA_BACKEND_URL environment variable to your Ollama server URL.)\n\nYour story prompt was: "${messages[messages.length - 1]?.content}"\n\nI would love to create an amazing story for you once connected to the AI backend!`
-        }
-      };
-    }
-    
-    throw error;
+    // Rethrow with a more user-friendly message
+    throw new Error('Failed to communicate with the AI backend. Please try again in a moment.');
   }
 };
