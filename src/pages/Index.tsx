@@ -6,12 +6,14 @@ import { LoadingIndicator } from '@/components/LoadingIndicator';
 import { Header } from '@/components/Header';
 import { sendChatMessage } from '@/services/apiService';
 
+// Define a more comprehensive Message interface that works with both components
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   id: string;
 }
 
+// Interface for display messages (excludes system messages)
 type DisplayMessage = Omit<Message, 'role'> & {
   role: 'user' | 'assistant';
 };
@@ -70,6 +72,7 @@ const Index = () => {
     }
   };
 
+  // Filter out system messages for display
   const displayMessages = messages.filter(msg => msg.role !== 'system') as DisplayMessage[];
 
   return (
@@ -78,6 +81,7 @@ const Index = () => {
       
       <div className="container mx-auto px-4 pb-24">
         <div className="max-w-4xl mx-auto">
+          {/* Welcome message when no stories yet */}
           {displayMessages.length === 0 && (
             <div className="text-center py-12">
               <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
@@ -85,26 +89,21 @@ const Index = () => {
                   ✨ Let's Create Amazing Stories! ✨
                 </h2>
                 <p className="text-lg text-gray-700 mb-6">
-                  Tell me what kind of story you'd like me to create for you!
+                  Tell me what kind of story you'd like, and I'll create a magical tale just for you!
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-sm">
                   <div className="bg-blue-100 rounded-xl p-4">
-                    <strong>Adventure:</strong> "Create a story about a brave child on a magical quest"
+                    <strong>Try saying:</strong> "Tell me a story about a brave little mouse"
                   </div>
                   <div className="bg-green-100 rounded-xl p-4">
-                    <strong>Friendship:</strong> "Tell me a story about making new friends"
-                  </div>
-                  <div className="bg-purple-100 rounded-xl p-4">
-                    <strong>Animals:</strong> "Write about talking forest animals working together"
-                  </div>
-                  <div className="bg-orange-100 rounded-xl p-4">
-                    <strong>Space:</strong> "Create a story about exploring colorful planets"
+                    <strong>Or:</strong> "Create a story about friendship and adventure"
                   </div>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Chat messages */}
           <div className="space-y-4 mb-6">
             {displayMessages.map((message) => (
               <MessageBubble key={message.id} message={message} />
@@ -116,6 +115,7 @@ const Index = () => {
         </div>
       </div>
 
+      {/* Fixed input at bottom */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-white/20 p-4">
         <div className="container mx-auto max-w-4xl">
           <StoryInput onSendMessage={handleSendMessage} disabled={isLoading} />
