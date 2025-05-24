@@ -21,51 +21,58 @@ jobs:
           envs: OLLAMA_PRIVATE_IP
           script: |
             set -e
-            
+
             # Export environment variables
             export OLLAMA_PRIVATE_IP="${{ secrets.OLLAMA_PRIVATE_IP }}"
-            
-            # Set app directory
-            APP_DIR="/home/ubuntu/bedtime-ai-breeze"
-            
-            # Try to use existing Node.js first, then install if needed
+
+            # Parse repo name from GITHUB_REPOSITORY
+            REPO_NAME=$(basename "${{ github.repository }}")
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+            APP_DIR="/home/ubuntu/${REPO_NAME}"
+
+            echo "Repo name: $REPO_NAME"
+            echo "Repo URL: $REPO_URL"
+            echo "App directory: $APP_DIR"
+
+            # Check for Node.js, install if not present
             if command -v node &> /dev/null; then
               echo "Node.js already installed: $(node --version)"
               echo "NPM version: $(npm --version)"
             else
-              echo "Installing Node.js via package manager..."
+              echo "Installing Node.js..."
               sudo apt-get update
               curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
               sudo apt-get install -y nodejs
               echo "Node.js installed: $(node --version)"
               echo "NPM version: $(npm --version)"
             fi
-            
-            # Create/update the app directory
+
+            # Clone repo if directory doesn't exist
             if [ ! -d "$APP_DIR" ]; then
               echo "Cloning repository..."
               cd /home/ubuntu
-              git clone https://github.com/${{ github.repository }}.git bedtime-ai-breeze
+              git clone "$REPO_URL"
             fi
-            
+
+            # Navigate to app directory and update
             echo "Changing to directory: $APP_DIR"
             cd "$APP_DIR"
-            
-            echo "Pulling latest code from GitHub..."
+
+            echo "Resetting and pulling latest code..."
             git reset --hard
             git pull origin main
-            
+
             echo "Writing .env with OLLAMA backend..."
             echo "VITE_OLLAMA_BACKEND_URL=http://${OLLAMA_PRIVATE_IP}:11434" > .env
-            
+
             echo "Installing dependencies..."
             npm install
-            
+
             echo "Building frontend..."
             npm run build
-            
+
             echo "Restarting frontend server..."
             pkill -f "serve" || true
             nohup npx serve -s dist -l 4173 > serve.log 2>&1 &
-            
-            echo "Deployment completed successfully!"
+
+            echo "✅ Deployment completed successfully!"
