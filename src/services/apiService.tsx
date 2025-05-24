@@ -12,13 +12,13 @@ interface ChatResponse {
 }
 
 // Use import.meta.env instead of process.env for Vite projects
-const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL || 'http://localhost:11434';
+const BACKEND_URL = import.meta.env.VITE_OLLAMA_BACKEND_URL; // || 'http://localhost:11434';
 
 export const sendChatMessage = async (messages: Message[]): Promise<ChatResponse> => {
   try {
     console.log('Sending messages to backend:', messages);
     
-    const response = await fetch(`${BACKEND_URL}/chat`, {
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

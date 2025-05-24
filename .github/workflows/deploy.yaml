@@ -64,7 +64,7 @@ jobs:
 
             echo "Writing .env with OLLAMA backend..."
             echo "VITE_OLLAMA_BACKEND_URL=http://${OLLAMA_PRIVATE_IP}:11434" > .env
-
+        
             echo "Installing dependencies..."
             npm install
 
