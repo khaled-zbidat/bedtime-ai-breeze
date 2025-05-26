@@ -85,7 +85,7 @@ const Index = () => {
         <div className="flex-1 container mx-auto px-4 pb-24">
           <div className="max-w-4xl mx-auto">
             {/* Welcome message when no stories yet */}
-            {/* {displayMessages.length === 0 && (
+            {displayMessages.length === 0 && (
               <div className="text-center py-12">
                 <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-8 shadow-lg border border-white/20">
                   <h2 className="text-3xl font-bold text-purple-800 mb-4">
@@ -104,7 +104,7 @@ const Index = () => {
                   </div>
                 </div>
               </div>
-            )} */}
+            )}
 
             {/* Chat messages */}
             <div className="space-y-4 mb-6">
